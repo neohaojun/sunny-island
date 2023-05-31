@@ -1,69 +1,70 @@
 #include <Arduino.h>
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
-#include "WiFi.h"
+#include <Wire.h>
+#include <Adafruit_INA219.h>
+#include <LiquidCrystal_I2C.h>
 
-// #define BT
-// #define WIFI
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+Adafruit_INA219 ina219;
 
-const char* ssid = "";
-const char* password = "";
+int lcdColumns = 16;
+int lcdRows = 2;
+LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
 
-class MyCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string value = pCharacteristic->getValue();
-      if (value.length() > 0) {
-        Serial.print("\r\nNew value: ");
-        for (int i = 0; i < value.length(); i++)
-          Serial.print(value[i]);
-        Serial.println();
-      }
-    }
-};
+void setup(){
+  lcd.init();                  
+  lcd.backlight();
 
-void setup() {
   Serial.begin(9600);
-  while (!Serial) {}
-  Serial.println("Serial initialised!");
-
-  #ifdef WIFI
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-
-  Serial.print("\nWiFi connecting");
-
-  while(WiFi.status() != WL_CONNECTED){
-    Serial.print(".");
-    delay(100);
+  while (!Serial) {
+      delay(1);
   }
+    
+  Serial.println("Hello!");
+  
+  // Initialize the INA219.
+  // By default the initialization will use the largest range (32V, 2A).  However
+  // you can call a setCalibration function to change this range (see comments).
+  if (! ina219.begin()) {
+    Serial.println("Failed to find INA219 chip");
+    while (1) { delay(10); }
+  }
+  // To use a slightly lower 32V, 1A range (higher precision on amps):
+  //ina219.setCalibration_32V_1A();
+  // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
+  //ina219.setCalibration_16V_400mA();
 
-  Serial.print("\nSuccessfully connected to: ");
-  Serial.println(ssid);
-  Serial.print("Local ESP32 IP: ");
-  Serial.println(WiFi.localIP());
-  #endif
-
-  #ifdef BT
-  BLEDevice::init("ESP32");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-                                         CHARACTERISTIC_UUID,
-                                         BLECharacteristic::PROPERTY_READ |
-                                         BLECharacteristic::PROPERTY_WRITE
-                                       );
-
-  pCharacteristic->setCallbacks(new MyCallbacks());
-
-  pCharacteristic->setValue("Hello World");
-  pService->start();
-
-  BLEAdvertising *pAdvertising = pServer->getAdvertising();
-  pAdvertising->start();
-  #endif
+  Serial.println("Measuring voltage and current with INA219 ...");
 }
 
-void loop() {}
+void loop(){
+  float shuntvoltage = 0;
+  float busvoltage = 0;
+  float current_mA = 0;
+  float loadvoltage = 0;
+  float power_mW = 0;
+
+  shuntvoltage = ina219.getShuntVoltage_mV();
+  busvoltage = ina219.getBusVoltage_V();
+  current_mA = ina219.getCurrent_mA();
+  power_mW = ina219.getPower_mW();
+  loadvoltage = busvoltage + (shuntvoltage / 1000);
+  
+  // Serial.print("Bus Voltage:   "); Serial.print(busvoltage); Serial.println(" V");
+  // Serial.print("Shunt Voltage: "); Serial.print(shuntvoltage); Serial.println(" mV");
+  // Serial.print("Load Voltage:  "); Serial.print(loadvoltage); Serial.println(" V");
+  // Serial.print("Current:       "); Serial.print(current_mA); Serial.println(" mA");
+  // Serial.print("Power:         "); Serial.print(power_mW); Serial.println(" mW");
+  // Serial.println("");
+
+  lcd.setCursor(0, 0);
+
+  lcd.print(busvoltage);
+  lcd.print(" V  ");
+  lcd.print(current_mA);
+  lcd.print(" mA");
+
+  lcd.setCursor(0,1);
+  lcd.print(power_mW / 1000);
+  lcd.print(" W");
+
+  delay(1000);
+}
