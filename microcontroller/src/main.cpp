@@ -27,6 +27,8 @@ void setup(){
     Serial.println("Failed to find INA219 chip");
     while (1) { delay(10); }
   }
+
+  ina219.setCalibration_16V_400mA();
   // To use a slightly lower 32V, 1A range (higher precision on amps):
   //ina219.setCalibration_32V_1A();
   // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
@@ -63,8 +65,9 @@ void loop(){
   lcd.print(" mA");
 
   lcd.setCursor(0,1);
-  lcd.print(power_mW / 1000);
-  lcd.print(" W");
+  lcd.print(power_mW);
+  lcd.print(" mW");
 
   delay(1000);
+  lcd.clear();
 }
